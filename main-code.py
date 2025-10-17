@@ -1,4 +1,5 @@
 import tkinter as tk
+from PIL import Image, ImageTk
 from tkinter import messagebox, scrolledtext
 import requests
 import urllib.parse
@@ -103,6 +104,12 @@ root = tk.Tk()
 root.title("MapQuest")
 root.geometry("480x550")
 root.configure(bg="#b3a9a9")
+
+bg_image = Image.open(r"C:\your\path\here\hoenn2.jpg")
+bg_photo = ImageTk.PhotoImage(bg_image)
+
+bg_label = tk.Label(root, image=bg_photo)
+bg_label.place(x=0, y=0, relwidth=1, relheight=1)
 
 title = tk.Label(root, text="MapQuest", font=("Helvetica", 22, "bold"), bg="#b3a9a9")
 title.pack(pady=10)
