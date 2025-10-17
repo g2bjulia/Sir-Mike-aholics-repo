@@ -9,6 +9,13 @@ ROUTE_URL = "https://graphhopper.com/api/1/route?"
 KEY = "6922dfda-cbee-43b4-b131-44cf1ce77158"
 
 # =========================
+# GLOBAL STATE
+# =========================
+last_route_data = None  # To store the most recent route info
+unit_mode = "km"  # Default unit mode
+
+
+# =========================
 # API FUNCTIONS
 # =========================
 def geocoding(location, key):
@@ -35,12 +42,14 @@ def geocoding(location, key):
 
 
 def calculate_route():
-    """Calculate the route and show all info in the directions box."""
+    """Calculate the route and display results in directions box."""
+    global last_route_data, unit_mode
+    unit_mode = "km"  # Reset to default each new calculation
     loc1 = entry_loc1.get()
     loc2 = entry_loc2.get()
     vehicle = vehicle_var.get()
 
-    directions_box.delete(1.0, tk.END)  # Clear the box
+    directions_box.delete(1.0, tk.END)
 
     if not loc1 or not loc2:
         directions_box.insert(tk.END, "⚠ Please enter both locations.\n")
@@ -64,36 +73,15 @@ def calculate_route():
 
         if response.status_code == 200:
             path = data["paths"][0]
-            dist_km = path["distance"] / 1000
-            dist_mi = dist_km / 1.61
-            time_ms = path["time"]
-            hrs = int(time_ms / 1000 / 60 / 60)
-            mins = int(time_ms / 1000 / 60 % 60)
-            secs = int(time_ms / 1000 % 60)
-
-            # Print summary
-            directions_box.insert(
-                tk.END,
-                f"From: {orig[2]}\n"
-                f"To: {dest[2]}\n"
-                f"Mode: {vehicle.capitalize()}\n"
-                f"Distance: {dist_km:.1f} km / {dist_mi:.1f} miles\n"
-                f"Duration: {hrs:02d}:{mins:02d}:{secs:02d}\n"
-                f"{'='*45}\n\n"
-            )
-
-            # Turn-by-turn
-            directions_box.insert(tk.END, "Turn-by-turn directions:\n\n")
-            for each in path["instructions"]:
-                step = each["text"]
-                step_dist_km = each["distance"] / 1000
-                step_dist_mi = step_dist_km / 1.61
-                directions_box.insert(
-                    tk.END, f"• {step} ({step_dist_km:.2f} km / {step_dist_mi:.2f} mi)\n"
-                )
-
-            directions_box.insert(tk.END, f"\n{'='*45}\n✓ Route complete.\n")
-
+            last_route_data = {
+                "orig": orig,
+                "dest": dest,
+                "vehicle": vehicle,
+                "distance": path["distance"],  # meters
+                "time": path["time"],  # milliseconds
+                "instructions": path["instructions"],
+            }
+            show_route()
         else:
             msg = data.get("message", "Unknown error")
             directions_box.insert(tk.END, f"❌ Routing failed: {msg}\n")
@@ -101,22 +89,88 @@ def calculate_route():
     except Exception as e:
         directions_box.insert(tk.END, f"❌ Request failed: {e}\n")
 
+
+def show_route():
+    """Display route info based on current unit mode."""
+    directions_box.delete(1.0, tk.END)
+
+    if not last_route_data:
+        directions_box.insert(tk.END, "No route data available. Please calculate first.\n")
+        return
+
+    orig = last_route_data["orig"]
+    dest = last_route_data["dest"]
+    vehicle = last_route_data["vehicle"]
+    dist_m = last_route_data["distance"]
+    time_ms = last_route_data["time"]
+    instructions = last_route_data["instructions"]
+
+    dist_km = dist_m / 1000
+    dist_mi = dist_km / 1.61
+    hrs = int(time_ms / 1000 / 60 / 60)
+    mins = int(time_ms / 1000 / 60 % 60)
+    secs = int(time_ms / 1000 % 60)
+
+    if unit_mode == "km":
+        summary = (
+            f"From: {orig[2]}\n"
+            f"To: {dest[2]}\n"
+            f"Mode: {vehicle.capitalize()}\n"
+            f"Distance: {dist_km:.1f} km\n"
+            f"Duration: {hrs:02d}:{mins:02d}:{secs:02d}\n"
+            f"{'='*45}\n\nTurn-by-turn directions:\n\n"
+        )
+    else:
+        summary = (
+            f"From: {orig[2]}\n"
+            f"To: {dest[2]}\n"
+            f"Mode: {vehicle.capitalize()}\n"
+            f"Distance: {dist_mi:.1f} miles\n"
+            f"Duration: {hrs:02d}:{mins:02d}:{secs:02d}\n"
+            f"{'='*45}\n\nTurn-by-turn directions:\n\n"
+        )
+
+    directions_box.insert(tk.END, summary)
+
+    for each in instructions:
+        step = each["text"]
+        step_dist_km = each["distance"] / 1000
+        step_dist_mi = step_dist_km / 1.61
+        if unit_mode == "km":
+            directions_box.insert(tk.END, f"• {step} ({step_dist_km:.2f} km)\n")
+        else:
+            directions_box.insert(tk.END, f"• {step} ({step_dist_mi:.2f} mi)\n")
+
+    directions_box.insert(tk.END, f"\n{'='*45}\n✓ Route complete.\n")
+
+
+def toggle_units():
+    """Switch between kilometers and miles view."""
+    global unit_mode
+    if not last_route_data:
+        directions_box.insert(tk.END, "\n⚠ Please calculate a route first.\n")
+        return
+
+    unit_mode = "mi" if unit_mode == "km" else "km"
+    show_route()
+
+
 # =========================
 # GUI SETUP
 # =========================
 root = tk.Tk()
 root.title("MapQuest")
-root.geometry("480x550")
+root.geometry("480x580")
 root.configure(bg="#b3a9a9")
 
 # Background image
 try:
-    bg_image = Image.open(r"hoenn2.jpg")
+    bg_image = Image.open(r"hoenn2.jpg").resize((480, 580))
     bg_photo = ImageTk.PhotoImage(bg_image)
     bg_label = tk.Label(root, image=bg_photo)
     bg_label.place(x=0, y=0, relwidth=1, relheight=1)
 except Exception:
-    pass  # If image not found, ignore
+    pass  # If no image, continue normally
 
 # Title
 title = tk.Label(root, text="MapQuest", font=("Helvetica", 22, "bold"), bg="#b3a9a9")
@@ -152,9 +206,15 @@ for mode in ["car", "bike", "foot"]:
         bg="white"
     ).pack(side="left", padx=10)
 
-# Calculate button
-calc_btn = tk.Button(root, text="Calculate!", font=("Arial", 12, "bold"), bg="white", command=calculate_route)
-calc_btn.pack(pady=10)
+# Buttons frame
+btn_frame = tk.Frame(root, bg="#b3a9a9")
+btn_frame.pack(pady=10)
+
+calc_btn = tk.Button(btn_frame, text="Calculate!", font=("Arial", 12, "bold"), bg="white", command=calculate_route)
+calc_btn.pack(side="left", padx=10)
+
+convert_btn = tk.Button(btn_frame, text="Convert!", font=("Arial", 12, "bold"), bg="white", command=toggle_units)
+convert_btn.pack(side="left", padx=10)
 
 # Directions box
 directions_box = scrolledtext.ScrolledText(root, width=55, height=16, wrap=tk.WORD, font=("Consolas", 10))
