@@ -1,0 +1,5 @@
+timestamp,origin,destination,vehicle,distance_km,duration_hms,fuel_eff_l,fuel_price_per_l,fuel_needed_l,fuel_cost
+2025-10-17 18:31:40,"Washington, District of Columbia, United States","Baltimore, Maryland, United States",car,63.067,00:51:52,,,,
+2025-10-17 18:31:52,"Washington, District of Columbia, United States","Baltimore, Maryland, United States",car,63.067,00:51:52,,,,
+2025-10-17 18:31:59,"Washington, District of Columbia, United States","Baltimore, Maryland, United States",car,63.067,00:51:52,,,,
+2025-10-17 18:34:52,"Los Angeles, California, United States","Baltimore, Maryland, United States",foot,4578.100,928:16:02,,,,
