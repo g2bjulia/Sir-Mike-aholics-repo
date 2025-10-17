@@ -105,7 +105,7 @@ root.title("MapQuest")
 root.geometry("480x550")
 root.configure(bg="#b3a9a9")
 
-bg_image = Image.open(r"C:\your\path\here\hoenn2.jpg")
+bg_image = Image.open(r"hoenn2.jpg")
 bg_photo = ImageTk.PhotoImage(bg_image)
 
 bg_label = tk.Label(root, image=bg_photo)
