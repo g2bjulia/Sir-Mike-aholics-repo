@@ -1,6 +1,6 @@
 import tkinter as tk
 from PIL import Image, ImageTk
-from tkinter import messagebox, scrolledtext
+from tkinter import scrolledtext
 import requests
 import urllib.parse
 
@@ -12,6 +12,7 @@ KEY = "6922dfda-cbee-43b4-b131-44cf1ce77158"
 # API FUNCTIONS
 # =========================
 def geocoding(location, key):
+    """Geocode a location string using GraphHopper."""
     if not location.strip():
         return None
     geocode_url = "https://graphhopper.com/api/1/geocode?"
@@ -29,28 +30,28 @@ def geocoding(location, key):
             return (lat, lng, label)
         else:
             return None
-    except Exception as e:
-        messagebox.showerror("Error", f"Geocoding failed: {e}")
+    except Exception:
         return None
 
 
 def calculate_route():
+    """Calculate the route and show all info in the directions box."""
     loc1 = entry_loc1.get()
     loc2 = entry_loc2.get()
     vehicle = vehicle_var.get()
 
+    directions_box.delete(1.0, tk.END)  # Clear the box
+
     if not loc1 or not loc2:
-        messagebox.showwarning("Missing Input", "Please enter both locations.")
+        directions_box.insert(tk.END, "⚠ Please enter both locations.\n")
         return
 
-    directions_box.delete(1.0, tk.END)
-    directions_box.insert(tk.END, "Fetching route...\n")
+    directions_box.insert(tk.END, f"Calculating route from '{loc1}' to '{loc2}' by {vehicle}...\n\n")
 
     orig = geocoding(loc1, KEY)
     dest = geocoding(loc2, KEY)
     if not orig or not dest:
-        messagebox.showerror("Error", "Failed to geocode one or both locations.")
-        directions_box.insert(tk.END, "❌ Geocoding failed.\n")
+        directions_box.insert(tk.END, "❌ Error: Failed to geocode one or both locations.\n")
         return
 
     op = f"&point={orig[0]}%2C{orig[1]}"
@@ -60,42 +61,45 @@ def calculate_route():
     try:
         response = requests.get(route_url)
         data = response.json()
+
         if response.status_code == 200:
-            dist_km = data["paths"][0]["distance"] / 1000
+            path = data["paths"][0]
+            dist_km = path["distance"] / 1000
             dist_mi = dist_km / 1.61
-            time_ms = data["paths"][0]["time"]
+            time_ms = path["time"]
             hrs = int(time_ms / 1000 / 60 / 60)
             mins = int(time_ms / 1000 / 60 % 60)
             secs = int(time_ms / 1000 % 60)
 
-            summary = (
-                f"From: {orig[2]}\nTo: {dest[2]}\n\n"
+            # Print summary
+            directions_box.insert(
+                tk.END,
+                f"From: {orig[2]}\n"
+                f"To: {dest[2]}\n"
                 f"Mode: {vehicle.capitalize()}\n"
                 f"Distance: {dist_km:.1f} km / {dist_mi:.1f} miles\n"
-                f"Duration: {hrs:02d}:{mins:02d}:{secs:02d}"
+                f"Duration: {hrs:02d}:{mins:02d}:{secs:02d}\n"
+                f"{'='*45}\n\n"
             )
-            messagebox.showinfo("Route Info", summary)
 
-            directions_box.delete(1.0, tk.END)
-            directions_box.insert(tk.END, f"{summary}\n\nTurn-by-turn directions:\n")
-            directions_box.insert(tk.END, "=====================================\n")
-
-            for each in data["paths"][0]["instructions"]:
+            # Turn-by-turn
+            directions_box.insert(tk.END, "Turn-by-turn directions:\n\n")
+            for each in path["instructions"]:
                 step = each["text"]
                 step_dist_km = each["distance"] / 1000
                 step_dist_mi = step_dist_km / 1.61
                 directions_box.insert(
-                    tk.END, f"- {step} ({step_dist_km:.2f} km / {step_dist_mi:.2f} mi)\n"
+                    tk.END, f"• {step} ({step_dist_km:.2f} km / {step_dist_mi:.2f} mi)\n"
                 )
+
+            directions_box.insert(tk.END, f"\n{'='*45}\n✓ Route complete.\n")
 
         else:
             msg = data.get("message", "Unknown error")
             directions_box.insert(tk.END, f"❌ Routing failed: {msg}\n")
-            messagebox.showerror("Error", f"Routing failed: {msg}")
 
     except Exception as e:
         directions_box.insert(tk.END, f"❌ Request failed: {e}\n")
-        messagebox.showerror("Error", f"Routing request failed:\n{e}")
 
 # =========================
 # GUI SETUP
@@ -105,15 +109,20 @@ root.title("MapQuest")
 root.geometry("480x550")
 root.configure(bg="#b3a9a9")
 
-bg_image = Image.open(r"hoenn2.jpg")
-bg_photo = ImageTk.PhotoImage(bg_image)
+# Background image
+try:
+    bg_image = Image.open(r"hoenn2.jpg")
+    bg_photo = ImageTk.PhotoImage(bg_image)
+    bg_label = tk.Label(root, image=bg_photo)
+    bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+except Exception:
+    pass  # If image not found, ignore
 
-bg_label = tk.Label(root, image=bg_photo)
-bg_label.place(x=0, y=0, relwidth=1, relheight=1)
-
+# Title
 title = tk.Label(root, text="MapQuest", font=("Helvetica", 22, "bold"), bg="#b3a9a9")
 title.pack(pady=10)
 
+# Input frame
 frame = tk.Frame(root, bg="#b3a9a9")
 frame.pack(pady=10)
 
@@ -147,9 +156,9 @@ for mode in ["car", "bike", "foot"]:
 calc_btn = tk.Button(root, text="Calculate!", font=("Arial", 12, "bold"), bg="white", command=calculate_route)
 calc_btn.pack(pady=10)
 
-# Directions display
-directions_box = scrolledtext.ScrolledText(root, width=55, height=15, wrap=tk.WORD, font=("Consolas", 10))
+# Directions box
+directions_box = scrolledtext.ScrolledText(root, width=55, height=16, wrap=tk.WORD, font=("Consolas", 10))
 directions_box.pack(padx=10, pady=10)
-directions_box.insert(tk.END, "Enter locations and click 'Calculate!' to view directions here.\n")
+directions_box.insert(tk.END, "Enter two locations and click 'Calculate!' to view your route here.\n")
 
 root.mainloop()
