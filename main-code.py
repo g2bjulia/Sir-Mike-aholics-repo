@@ -1,135 +1,117 @@
+import tkinter as tk
+from tkinter import messagebox
 import requests
 import urllib.parse
 
+# GraphHopper API key and URL
+ROUTE_URL = "https://graphhopper.com/api/1/route?"
+KEY = "6922dfda-cbee-43b4-b131-44cf1ce77158"
 
-#geocode_url = "https://graphhopper.com/api/1/geocode?"
+# ========== API FUNCTIONS ==========
+def geocoding(location, key):
+    if not location.strip():
+        return None
+    geocode_url = "https://graphhopper.com/api/1/geocode?"
+    url = geocode_url + urllib.parse.urlencode({"q": location, "limit": "1", "key": key})
+    try:
+        reply = requests.get(url)
+        data = reply.json()
+        if reply.status_code == 200 and data["hits"]:
+            hit = data["hits"][0]
+            lat, lng = hit["point"]["lat"], hit["point"]["lng"]
+            name = hit.get("name", location)
+            country = hit.get("country", "")
+            state = hit.get("state", "")
+            label = ", ".join(filter(None, [name, state, country]))
+            return (lat, lng, label)
+        else:
+            return None
+    except Exception as e:
+        messagebox.showerror("Error", f"Geocoding failed: {e}")
+        return None
 
+def calculate_route():
+    loc1 = entry_loc1.get()
+    loc2 = entry_loc2.get()
+    vehicle = vehicle_var.get()
 
-route_url = "https://graphhopper.com/api/1/route?"
-key = "6922dfda-cbee-43b4-b131-44cf1ce77158"
+    if not loc1 or not loc2:
+        messagebox.showwarning("Missing Input", "Please enter both locations.")
+        return
 
+    orig = geocoding(loc1, KEY)
+    dest = geocoding(loc2, KEY)
+    if not orig or not dest:
+        messagebox.showerror("Error", "Failed to geocode one or both locations.")
+        return
 
-def geocoding (location, key):
-   while location =="":
-       location = input("Enter the location again: ")
-   geocode_url = "https://graphhopper.com/api/1/geocode?"
-   url = geocode_url + urllib.parse.urlencode({"q":location, "limit": "1", "key":key})
-  
-   replydata = requests.get(url)
-   json_data = replydata.json()
-   json_status = replydata.status_code
-   print("Geocoding API URL for " + location + ":\n" + url)
+    op = f"&point={orig[0]}%2C{orig[1]}"
+    dp = f"&point={dest[0]}%2C{dest[1]}"
+    route_url = ROUTE_URL + urllib.parse.urlencode({"key": KEY, "vehicle": vehicle}) + op + dp
 
+    try:
+        response = requests.get(route_url)
+        data = response.json()
+        if response.status_code == 200:
+            dist_km = data["paths"][0]["distance"] / 1000
+            dist_mi = dist_km / 1.61
+            time_ms = data["paths"][0]["time"]
+            hrs = int(time_ms / 1000 / 60 / 60)
+            mins = int(time_ms / 1000 / 60 % 60)
+            secs = int(time_ms / 1000 % 60)
+            summary = (
+                f"From: {orig[2]}\nTo: {dest[2]}\n\n"
+                f"Mode: {vehicle.capitalize()}\n"
+                f"Distance: {dist_km:.1f} km / {dist_mi:.1f} miles\n"
+                f"Duration: {hrs:02d}:{mins:02d}:{secs:02d}"
+            )
+            messagebox.showinfo("Route Info", summary)
+        else:
+            messagebox.showerror("Error", f"Routing failed: {data.get('message', 'Unknown error')}")
+    except Exception as e:
+        messagebox.showerror("Error", f"Routing request failed:\n{e}")
 
-   if json_status == 200 and len(json_data["hits"]) !=0:
-       json_data = requests.get(url).json()
-       lat = json_data["hits"][0]["point"]["lat"]
-       lng = json_data["hits"][0]["point"]["lng"]
-       name = json_data["hits"][0]["name"]
-       value = json_data["hits"][0]["osm_value"]
+# ========== UI SETUP ==========
+root = tk.Tk()
+root.title("MapQuest")
+root.geometry("400x350")
+root.configure(bg="#b3a9a9")
 
+title = tk.Label(root, text="MapQuest", font=("Helvetica", 22, "bold"), bg="#b3a9a9")
+title.pack(pady=10)
 
-       if "country" in json_data["hits"][0]:
-           country = json_data["hits"][0]["country"]
-       else:
-           country=""
-      
-       if "state" in json_data["hits"][0]:
-           state = json_data["hits"][0]["state"]
-       else:
-           state=""
-      
-       if len(state) !=0 and len(country) !=0:
-           new_loc = name + ", " + state + ", " + country
-       elif len(state) !=0:
-           new_loc = name + ", " + country
-       else:
-           new_loc = name
-          
-       print("Geocoding API URL for " + new_loc + " (Location Type: " + value + ")\n" + url)
-   else:
-       lat="null"
-       lng="null"
-       new_loc="location"
-       if json_status !=200:
-           print("Geocode API Status: " + str(json_status) + "\nError message: " + json_data["message"])
-       print("Geocode API status: " + str(json_status) + "\nError message: " + json_data["message"])
-   return json_status, lat, lng, new_loc
+frame = tk.Frame(root, bg="#b3a9a9")
+frame.pack(pady=10)
 
+tk.Label(frame, text="Location 1", font=("Arial", 12), bg="#b3a9a9").grid(row=0, column=0, padx=10, pady=5)
+entry_loc1 = tk.Entry(frame, width=25)
+entry_loc1.grid(row=0, column=1)
 
-#url = geocode_url + urllib.parse.urlencode({"q":loc1, "limit": "1", "key":key})
+tk.Label(frame, text="Location 2", font=("Arial", 12), bg="#b3a9a9").grid(row=1, column=0, padx=10, pady=5)
+entry_loc2 = tk.Entry(frame, width=25)
+entry_loc2.grid(row=1, column=1)
 
+# Vehicle selection
+vehicle_var = tk.StringVar(value="car")
 
-#replydata = requests.get(url)
-#json_data = replydata.json()
-#json_status = replydata.status_code
-#print(json_status)
+vehicle_frame = tk.Frame(root, bg="#b3a9a9")
+vehicle_frame.pack(pady=10)
 
+for mode in ["car", "bike", "foot"]:
+    tk.Radiobutton(
+        vehicle_frame,
+        text=mode.capitalize(),
+        variable=vehicle_var,
+        value=mode,
+        indicatoron=False,
+        width=8,
+        pady=5,
+        font=("Arial", 11, "bold"),
+        bg="white"
+    ).pack(side="left", padx=10)
 
-#orig = geocoding(loc1, key)
-#print(orig)
-#dest = geocoding(loc2, key)
-#print(dest)
+# Calculate button
+calc_btn = tk.Button(root, text="Calculate!", font=("Arial", 12, "bold"), bg="white", command=calculate_route)
+calc_btn.pack(pady=15)
 
-
-while True:
-   print("\n+++++++++++++++++++++++++++++++++++++++++++++")
-   print("Vehicle profiles available on Graphhopper:")
-   print("+++++++++++++++++++++++++++++++++++++++++++++")
-   print("car, bike, foot")
-   print("+++++++++++++++++++++++++++++++++++++++++++++")
-   profile=["car", "bike", "foot"]
-   vehicle = input("Enter a vehicle profile from the list above: ")
-   if vehicle == "quit" or vehicle == "q":
-       break
-   elif vehicle in profile:
-       vehicle = vehicle
-   else:
-       vehicle = "car"
-       print("No valid vehicle profile was entered. Using the car profile.")
-
-
-   loc1 = input("Starting Location: ")
-   if loc1 == "quit" or loc1 =="q":
-       break
-   orig = geocoding(loc1, key)
-   #print(orig)
-
-
-   loc2 = input("Destination: ")
-   if loc2 == "quit" or loc2 =="q":
-       break
-   dest = geocoding(loc2, key)
-   #print(dest)
-
-
-   print("================================================")
-   if orig[0] ==200 and dest[0]==200:
-       op="&point="+str(orig[1])+"%2C"+str(orig[2])
-       dp="&point="+str(dest[1])+"%2C"+str(dest[2])
-       paths_url = route_url + urllib.parse.urlencode({"key":key, "vehicle":vehicle}) + op + dp
-       paths_status = requests.get(paths_url).status_code
-       paths_data = requests.get(paths_url).json()
-       print("Routing API Status: " + str(paths_status) + "\nRouting API URL:\n" + paths_url)
-   print("================================================")
-   print("Directions from: " + orig[3] + "to" + dest[3] + " by " + vehicle)
-   print("================================================")
-   if paths_status ==200:
-       miles = (paths_data["paths"][0]["distance"])/1000/1.61
-       km = (paths_data["paths"][0]["distance"])/1000
-       sec = int(paths_data["paths"][0]["time"]/1000%60)
-       min = int(paths_data["paths"][0]["time"]/1000/60%60)
-       hr = int(paths_data["paths"][0]["time"]/1000/60/60)
-
-
-       print("Distance Traveled: {0:.1f} miles / {1:.1f} km".format(miles, km))
-       print("Trip Duration: {0:02d}:{1:02d}:{2:02d}".format(hr, min, sec))
-       print("================================================")
-       for each in range(len(paths_data["paths"][0]["instructions"])):
-           path = paths_data["paths"][0]["instructions"][each]["text"]
-           distance = paths_data["paths"][0]["instructions"][each]["distance"]
-           print("{0} ( {1:.1f} km / {2:.1f} miles )".format(path, distance/1000, distance/1000/1.61))
-       print("================================================")
-   else:
-       print("Error message: " + paths_data["message"])
-       print("**********************************************")
+root.mainloop()
