@@ -12,8 +12,12 @@ jobs:
       image: node:20
     steps:
       - uses: actions/checkout@v3
-        with:
-          node-version: 20
+      - run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
       - run: npm ci
       - run: npm test
       - run: npm run build
